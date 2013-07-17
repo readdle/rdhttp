@@ -51,8 +51,8 @@
 		E660EBD014BA5988000A94C6 /* RDHTTPDemoRoot.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = RDHTTPDemoRoot.m; path = DemoAppFiles/RDHTTPDemoRoot.m; sourceTree = "<group>"; };
 		E660EBD314BA5EE4000A94C6 /* RDHTTPImageLoadDemo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RDHTTPImageLoadDemo.h; path = DemoAppFiles/RDHTTPImageLoadDemo.h; sourceTree = "<group>"; };
 		E660EBD414BA5EE4000A94C6 /* RDHTTPImageLoadDemo.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = RDHTTPImageLoadDemo.m; path = DemoAppFiles/RDHTTPImageLoadDemo.m; sourceTree = "<group>"; };
+		E66348281796DA6B0085DE12 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = text; path = README.md; sourceTree = "<group>"; };
 		E6AF240914A2220700D1E01F /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
-		E6B5DF0314A2977200650FE1 /* readme.markdown */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = readme.markdown; sourceTree = "<group>"; };
 		E6CD8FA914B64839006B2A22 /* RDHTTPAppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = RDHTTPAppDelegate.h; path = DemoAppFiles/RDHTTPAppDelegate.h; sourceTree = SOURCE_ROOT; };
 		E6CD8FAA14B64839006B2A22 /* RDHTTPAppDelegate.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = RDHTTPAppDelegate.m; path = DemoAppFiles/RDHTTPAppDelegate.m; sourceTree = SOURCE_ROOT; };
 		E6CD8FAE14B6484F006B2A22 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = InfoPlist.strings; sourceTree = "<group>"; };
@@ -89,7 +89,7 @@
 		E63D88D8148141F000F15E16 = {
 			isa = PBXGroup;
 			children = (
-				E6B5DF0314A2977200650FE1 /* readme.markdown */,
+				E66348281796DA6B0085DE12 /* README.md */,
 				E660EBCA14BA5824000A94C6 /* DemoApp */,
 				E63D88ED148141F000F15E16 /* RDHTTP */,
 				E63D8905148141F000F15E16 /* RDHTTPTests */,
