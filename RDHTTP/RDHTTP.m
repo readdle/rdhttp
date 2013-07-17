@@ -361,6 +361,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     request.shouldUseRFC2616RedirectBehaviour = shouldUseRFC2616RedirectBehaviour;
     request.useInternalThread = useInternalThread;
     
+    [request setHTTPBodyStreamCreationBlock:self.HTTPBodyStreamCreationBlock];
     [request setSSLCertificateTrustHandler:self.SSLCertificateTrustHandler];
     [request setHTTPAuthHandler:self.HTTPAuthHandler];
     [request setDownloadProgressHandler:self.downloadProgressHandler];
