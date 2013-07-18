@@ -286,7 +286,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
             url = [NSURL URLWithString:(NSString *)urlObject];
         }
         else {
-            if (url == nil)
+            if (urlObject == nil)
                 NSLog(@"RDHTTP: nil object passed as an URL");
             else
                 NSLog(@"RDHTTP: unknown object passed as an URL, should be NSURL or NSString");
