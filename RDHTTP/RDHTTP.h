@@ -257,6 +257,20 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  */
 - (void)tryBasicHTTPAuthorizationWithUsername:(NSString *)username password:(NSString *)password;
 
+/** Returns a dictionary containing all the HTTP header fields of the receiver.
+ *
+ *  @returns a dictionary containing all the HTTP header fields of the receiver.
+ */
+
+- (NSDictionary *)allHTTPHeaderFields;
+
+/** Returns the value which corresponds to the given header field.
+ *
+ *  @param field the header field name to use for the lookup (case-insensitive).
+ *  @returns the value associated with the given header field, or nil if there is no value associated with the given header field.
+ */
+- (NSString *)valueForHTTPHeaderField:(NSString *)field;
+
 /** Sets the specified HTTP header field.
  *  @param value The new value for the header field. Any existing value for the field is replaced by the new value. 
  *  @param field The name of the header field to set. In keeping with the HTTP RFC, HTTP header field names are case-insensitive. 

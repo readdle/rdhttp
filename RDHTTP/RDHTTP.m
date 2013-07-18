@@ -408,7 +408,13 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     return [[[self alloc] initWithMethod:method resource:urlString] autorelease];
 }
 
+- (NSDictionary *)allHTTPHeaderFields {
+    return [urlRequest allHTTPHeaderFields];
+}
 
+- (NSString*)valueForHTTPHeaderField:(NSString*)field {
+    return [urlRequest valueForHTTPHeaderField:field];
+}
 
 - (void)setValue:(NSString *)value forHTTPHeaderField:(NSString *)field {
     [urlRequest setValue:value forHTTPHeaderField:field];
