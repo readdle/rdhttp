@@ -356,6 +356,12 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
 /** Returns HTTP response as data. If <shouldSaveResponseToFile> flag of <RDHTTPRequest> was set this property returns nil. */
 @property(nonatomic, readonly) NSData       *responseData;
 
+/** Returns a suggested filename for the response data. */
+@property(nonatomic, readonly) NSString     *suggestedFilename;
+
+/** Returns an expected content length for the response data. */
+@property (nonatomic, readonly) long long   expectedContentLength;
+
 /** Returns file URL of HTTP response saved as a temporary file. 
     If <shouldSaveResponseToFile> flag of <RDHTTPRequest> was not set this property returns nil. */
 @property(nonatomic, readonly) NSURL        *responseFileURL;

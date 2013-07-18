@@ -184,6 +184,14 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     return responseData;
 }
 
+- (NSString *)suggestedFilename {
+    return response.suggestedFilename;
+}
+
+- (long long)expectedContentLength {
+    return [response expectedContentLength];
+}
+
 - (NSString *)responseString {
     if (responseData == nil && responseFileURL) {
         NSLog(@"RDHTTP: attempt to access responseText with saveResponseToFile=YES set in request. return nil");
