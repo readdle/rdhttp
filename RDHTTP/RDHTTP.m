@@ -30,7 +30,6 @@
 #if TARGET_OS_IPHONE
 #import <MobileCoreServices/MobileCoreServices.h>
 #endif
-#include <pthread.h>
 
 NSString *const RDHTTPResponseCodeErrorDomain = @"RDHTTPResponseCodeErrorDomain";
 static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
