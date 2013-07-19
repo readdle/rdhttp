@@ -752,7 +752,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     [multipartPostFiles setObject:@{@"fileURL" : fileURL, @"fileName" : fileName} forKey:key];
 }
 
-- (NSInputStream*)multipartPostStreamWithEncoding:(NSStringEncoding)encoding {
+- (RDHTTPMultipartPostStream*)multipartPostStreamWithEncoding:(NSStringEncoding)encoding {
     RDHTTPMultipartPostStream* postStream = nil;
     
     if (multipartPostFiles) {
