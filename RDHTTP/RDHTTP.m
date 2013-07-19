@@ -1619,7 +1619,7 @@ static RDHTTPThread *_rdhttpThread;
     
     if (request.shouldRedirect) {
         if (request.shouldUseRFC2616RedirectBehaviour) {
-            NSMutableURLRequest *new2616request = [[[request _nsurlrequest] copy] autorelease];
+            NSMutableURLRequest *new2616request = [[[request _nsurlrequest] mutableCopy] autorelease];
             [new2616request setURL:newURLRequest.URL];
             return new2616request;
         }
