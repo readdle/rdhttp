@@ -6,6 +6,7 @@
 //  Copyright (c) 2011 Readdle. All rights reserved.
 //
 
+#import <pthread.h>
 #import "RDHTTPAppDelegate.h"
 #import "RDHTTPDemoRoot.h"
 @implementation RDHTTPAppDelegate
@@ -30,6 +31,12 @@
 
     self.window.backgroundColor = [UIColor whiteColor];
     [self.window makeKeyAndVisible];
+
+    NSLog(@"Starting custom thread for HTTP processing");
+    NSThread *customHTTPThread = [[NSThread alloc] initWithTarget:self selector:@selector(httpThreadMain) object:nil];
+    [RDHTTPOperation setThread:customHTTPThread];
+    [customHTTPThread start];
+    [customHTTPThread release];
 
     return YES;
 }
@@ -73,9 +80,21 @@
      */
 }
 
-- (RDHTTPThread *)rdhttpThread {
-    NSLog(@"returning RDHTTP from app delegate");
-    return [RDHTTPThread defaultThread];
+- (void)httpThreadMain {
+    @autoreleasepool {
+        [NSThread currentThread].name = @"RDHTTPDemoConnectionThread";
+        pthread_setname_np("RDHTTPDemoConnectionThread");
+        [NSTimer scheduledTimerWithTimeInterval:1000000 target:nil selector:nil userInfo:nil repeats:YES];
+
+        NSRunLoop *loop = [NSRunLoop currentRunLoop];
+        BOOL hasSources = YES;
+
+        while(![NSThread currentThread].isCancelled && hasSources) {
+            @autoreleasepool {
+                hasSources = [loop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:10.0]];
+            }
+        }
+    }
 }
 
 @end

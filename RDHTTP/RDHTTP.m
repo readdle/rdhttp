@@ -1269,11 +1269,21 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 
 #pragma mark - RDHTTPThread
 
-static RDHTTPThread *_rdhttpThread;
+static NSThread *_rdhttpThread;
+
+/** RDHTTPThread is a basic runloop-enabled NSThread that will work for HTTP request processing.
+ *
+ */
+@interface RDHTTPThread : NSThread {
+}
+
+/** Returns default instance of RDHTTPThread */
++ (NSThread *)defaultThread;
+@end
 
 @implementation RDHTTPThread
 
-+ (RDHTTPThread *)defaultThread {
++ (NSThread *)defaultThread {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         if (_rdhttpThread == nil) {
@@ -1336,6 +1346,11 @@ static RDHTTPThread *_rdhttpThread;
 
 @implementation RDHTTPOperation
 
++ (void)setThread:(NSThread*)thread {
+    NSAssert(_rdhttpThread == nil, @"RDHTTPOperation: called setThread after thread initialization");
+    _rdhttpThread = [thread retain];
+}
+
 - (id)initWithRequest:(RDHTTPRequest *)aRequest {
     self = [super init];
     if (self) {
@@ -1377,22 +1392,11 @@ static RDHTTPThread *_rdhttpThread;
     isExecuting = YES;
     [self didChangeValueForKey:@"isExecuting"];
     
-    NSAssert(isExecuting && isFinished == NO, @"RDHTTPConnection: someone called -(void)start twice");
+    NSAssert(isExecuting && isFinished == NO, @"RDHTTPOperation: someone called -(void)start twice");
     
     if (request.useInternalThread) {
-        
         if (_rdhttpThread == nil) {
-            
-#ifdef TARGET_OS_IPHONE
-            NSObject<UIApplicationDelegate> *appDelegate = [UIApplication sharedApplication].delegate;
-            if ([appDelegate respondsToSelector:@selector(rdhttpThread)]) {
-                _rdhttpThread = [appDelegate performSelector:@selector(rdhttpThread)];
-            }
-#endif
-            if (_rdhttpThread == nil) {
-                _rdhttpThread = [RDHTTPThread defaultThread];
-            }
-            
+            _rdhttpThread = [RDHTTPThread defaultThread];
         }
         
         [self performSelector:@selector(_start) onThread:_rdhttpThread withObject:nil waitUntilDone:NO];

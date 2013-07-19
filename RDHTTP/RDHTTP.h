@@ -446,6 +446,11 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
 @property (readonly) BOOL isFinished;
 @property (readonly) BOOL isCancelled;
 
+/** Sets global thread for execution of <RDHTTPOperation>s. If thread is not set while <RDHTTPRequest> <useInternalThread> flag enabled,
+ * internal thread will be created on first operation start.
+ */
++ (void)setThread:(NSThread *)thread;
+
 @end
 
 /** RDHTTPMultipartPostStream is an object that is returned by <RDHTTPFormPost> <multipartPostStreamWithEncoding:> method.
@@ -543,36 +548,3 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
 @end
 
 
-
-
-
-/** RDHTTPThread is a basic runloop-enabled NSThread that will work for HTTP request processing.
- * 
- *  You may need to use this object in case your iOS application delegate conforms to <RDHTTPThreadProviderAppDelegate> protocol. 
- */
-@interface RDHTTPThread : NSThread {
-}
-
-/** Returns default instance of RDHTTPThread */ 
-+ (RDHTTPThread *)defaultThread;
-@end
-
-
-
-/** The RDHTTPThreadProviderAppDelegate protocol declares methods that may be implemented
- *  by the application delegate on the iOS.
- */
-@protocol RDHTTPThreadProviderAppDelegate <NSObject>
-
-/** Returns <NSThread> object that will be used for HTTP request processing. 
- * This <NSThread> should have working runloop, like <RDHTTPThread> provides. 
- *
- * You may provide your own runloop-enabled NSThread here.
- * 
- * Another reason for implementnig this method is using of several 
- * renamed RDHTTP classes that differs by prefix. 
- *
- * This object is expected to live until app termination.
- */
-- (NSThread *)rdhttpThread;
-@end
