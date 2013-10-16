@@ -520,22 +520,13 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  */
 + (id)formGetWithURL:(NSURL *)URL;
 
-
-/** Creates new RDHTTPFormGet object using provided URL String.
- *  @param URL <NSString> that represents URL that will accept GET-encoded parameters.
- *  @returns New RDHTTPFormGet object.
- */
-+ (id)formGetWithURLString:(NSString *)URLString;
-
-
 /** @name Filling GET form */
 
 /** Creates new RDHTTPFormGet object using provided URL String.
- *  @param URL <NSString> that represents URL that will accept GET-encoded parameters.
+ *  @param URLString <NSString> that represents URL that will accept GET-encoded parameters.
  *  @returns New RDHTTPFormGet object.
  */
-- (void)addGetValue:(NSString *)value forKey:(NSString *)key;
-
++ (id)formGetWithURLString:(NSString *)URLString;
 
 /** @name Gettings Results */
 
@@ -543,6 +534,8 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  @param value The value for GET form field identified by _key_.
  *  @param key The name of one of the GET form fields
  */
+- (void)addGetValue:(NSString *)value forKey:(NSString *)key;
+
 - (NSURL *)encodedURL;
 
 @end
