@@ -220,10 +220,10 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 }
 
 - (NSString *)description {
-    return [NSString stringWithFormat:@"<RDHTTPResponse: URL %@ code %d length: %d>", 
+    return [NSString stringWithFormat:@"<RDHTTPResponse: URL %@ code %ld length: %lu>", 
             response.URL,
-            response.statusCode, 
-            [responseData length]];
+            (long)response.statusCode, 
+            (unsigned long)[responseData length]];
 }
 
 - (BOOL)  moveResponseFileToURL:(NSURL *)destination 
@@ -448,7 +448,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 
 - (void)setHTTPBodyData:(NSData *)data contentType:(NSString *)contentType {
     [self postBodyCheckAndSetContentType:contentType];
-    [urlRequest setValue:[NSString stringWithFormat:@"%u", [data length]] forHTTPHeaderField:@"Content-Length"];
+    [urlRequest setValue:[NSString stringWithFormat:@"%lu", (unsigned long)[data length]] forHTTPHeaderField:@"Content-Length"];
     [urlRequest setHTTPBody:data];
 }
 
@@ -795,7 +795,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
                                                        multipartPostFields:multipartPostFiles
                                                                   encoding:encoding];
         
-        [request        addValue:[NSString stringWithFormat:@"%u", postStream.multipartBodyLength]
+        [request        addValue:[NSString stringWithFormat:@"%lu", (unsigned long)postStream.multipartBodyLength]
               forHTTPHeaderField:@"Content-Length"];
         
         NSString *contentType = [NSString stringWithFormat:@"multipart/form-data; charset=%@; boundary=%@", charset, postStream.contentBoundary];
