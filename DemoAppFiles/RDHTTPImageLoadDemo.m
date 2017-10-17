@@ -89,12 +89,7 @@ static NSString *const ImageLoadDemoURL = @"http://www.pictures-of-cats.org/imag
     [operation cancel];
 }
 
-- (void)viewDidUnload
-{
-    [super viewDidUnload];
-    label = nil;
-    imageView = nil;
-}
+
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
 {
