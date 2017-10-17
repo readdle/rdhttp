@@ -25,7 +25,13 @@
 //  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+#ifndef RDHTTP_H
+#define RDHTTP_H
+
 #import <Foundation/Foundation.h>
+
+
+NS_ASSUME_NONNULL_BEGIN
 
 /** Error domain for non-200 HTTP response codes */
 extern NSString *const RDHTTPResponseCodeErrorDomain;
@@ -37,6 +43,7 @@ extern NSString *const RDHTTPResponseCodeErrorDomain;
 @class RDHTTPResponse;
 @class RDHTTPAuthorizer;
 @class RDHTTPSSLServerTrust;
+@class RDHTTPCookiesStorage;
 
 /** Completion block type */
 typedef void (^rdhttp_block_t)(RDHTTPResponse *response);
@@ -54,10 +61,13 @@ typedef void (^rdhttp_trustssl_block_t)(RDHTTPSSLServerTrust *sslTrustResponse);
 typedef void (^rdhttp_httpauth_block_t)(RDHTTPAuthorizer *httpAuthorizeResponse);
 
 /** HTTP BODY Input Stream */
-typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
+typedef NSInputStream * _Nonnull (^rdhttp_httpbody_stream_block_t)(void);
+
+/** Response data block */
+typedef void (^rdhttp_response_data_block_t)(NSData *data);
 
 
-
+extern BOOL RDHTTPUseCredentialPersistenceNone; // default value is NO
 
 
 /** RDHTTPRequest is a main RDHTTP class. 
@@ -71,34 +81,34 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  @param URL <NSURL> that represents absolute URL with HTTP or HTTPS scheme.
  *  @returns New RDHTTPRequest object with GET HTTP request method  
  */
-+ (id)getRequestWithURL:(NSURL *)URL;
++ (instancetype)getRequestWithURL:(NSURL *)URL;
 
 /** Creates new RDHTTPRequest object with GET HTTP request method 
  *  @param URLString <NSString> that represents absolute URL with HTTP or HTTPS scheme
  *  @returns New RDHTTPRequest object with GET HTTP request method  
  */
-+ (id)getRequestWithURLString:(NSString *)URLString;
++ (instancetype)getRequestWithURLString:(NSString *)URLString;
 
 
 /** Creates new RDHTTPRequest object with POST HTTP request method 
  *  @param URL <NSURL> that represents absolute URL with HTTP or HTTPS scheme.
  *  @returns New RDHTTPRequest object with POST HTTP request method  
  */
-+ (id)postRequestWithURL:(NSURL *)URL;
++ (instancetype)postRequestWithURL:(NSURL *)URL;
 
 
 /** Creates new RDHTTPRequest object with POST HTTP request method 
  *  @param URLString <NSString> that represents absolute URL with HTTP or HTTPS scheme
  *  @returns New RDHTTPRequest object with POST HTTP request method  
  */
-+ (id)postRequestWithURLString:(NSString *)URLString;
++ (instancetype)postRequestWithURLString:(NSString *)URLString;
 
 /** Creates new RDHTTPRequest object with custom HTTP request method
  *  @param method HTTP request method (verb), for example "DELETE", "OPTIONS", "PROPFIND" 
  *  @param URL <NSURL> that represents absolute URL with HTTP or HTTPS scheme.
  *  @returns New RDHTTPRequest object with custom HTTP request method  
  */
-+ (id)customRequest:(NSString *)method withURL:(NSURL *)URL;
++ (instancetype)customRequest:(NSString *)method withURL:(NSURL *)URL;
 
 
 /** Creates new RDHTTPRequest object with custom HTTP request method
@@ -106,7 +116,7 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  @param URLString <NSString> that represents absolute URL with HTTP or HTTPS scheme
  *  @returns New RDHTTPRequest object with custom HTTP request method  
  */
-+ (id)customRequest:(NSString *)method withURLString:(NSString *)URLString;
++ (instancetype)customRequest:(NSString *)method withURLString:(NSString *)URLString;
 
 
 
@@ -120,7 +130,7 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  This block would be called if the server requeres authorization.
  *  To proceed with request execution call one of <RDHTTPAuthorizer> methods. 
  */ 
-@property(nonatomic, copy)  rdhttp_httpauth_block_t HTTPAuthHandler;
+@property(nullable, nonatomic, copy)  rdhttp_httpauth_block_t HTTPAuthHandler;
 
 
 /** A rdhttp_trustssl_block_t block which is 
@@ -129,7 +139,7 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  You may need to use this block for servers with self-signed sertificates.  
  *  To proceed with request execution call one of <RDHTTPSSLServerTrust> methods. 
  */ 
-@property(nonatomic, copy)  rdhttp_trustssl_block_t SSLCertificateTrustHandler;
+@property(nullable, nonatomic, copy)  rdhttp_trustssl_block_t SSLCertificateTrustHandler;
 
 
 /** A rdhttp_header_block_t block which is
@@ -139,7 +149,7 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  It is possible to examine headers here (see <RDHTTPResponse>) 
  *  and/or cancel connection. 
  */ 
-@property(nonatomic, copy)  rdhttp_header_block_t   headersHandler;
+@property(nullable, nonatomic, copy)  rdhttp_header_block_t   headersHandler;
 
 
 /** A rdhttp_progress_block_t block which is
@@ -147,7 +157,7 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *
  *  This block would be called periodically when receiving request response from the server.
  */ 
-@property(nonatomic, copy)  rdhttp_progress_block_t downloadProgressHandler;
+@property(nullable, nonatomic, copy)  rdhttp_progress_block_t downloadProgressHandler;
 
 
 /** A rdhttp_progress_block_t block which is
@@ -155,7 +165,7 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *
  *  This block would be called periodically when sending request body to the server.
  */ 
-@property(nonatomic, copy)  rdhttp_progress_block_t uploadProgressHandler;
+@property(nullable, nonatomic, copy)  rdhttp_progress_block_t uploadProgressHandler;
 
 
 /** A rdhttp_httpbody_stream_block_t block which is 
@@ -166,31 +176,40 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  HTTP body stream (set using <setHTTPBodyStream:contentType:>
  *  to servers with HTTP Digest authorization. 
  */ 
-@property(nonatomic, copy)  rdhttp_httpbody_stream_block_t HTTPBodyStreamCreationBlock;
+@property(nullable, nonatomic, copy)  rdhttp_httpbody_stream_block_t HTTPBodyStreamCreationBlock;
+
+
+/** A rdhttp_response_data_block_t block which is
+ *   void (^rdhttp_response_data_block_t)(NSData *data);
+ *
+ *  This block would be called periodically when receiving request response from the server.
+ */
+@property(nullable, nonatomic, copy)  rdhttp_response_data_block_t responseDataHandler;
 
 
 // additional difinition of setters make Xcode autocompletion better
-- (void)setHTTPAuthHandler:(rdhttp_httpauth_block_t)HTTPAuthHandler;
-- (void)setSSLCertificateTrustHandler:(rdhttp_trustssl_block_t)SSLCertificateTrustHandler;
-- (void)setHeadersHandler:(rdhttp_header_block_t)headersHandler;
-- (void)setDownloadProgressHandler:(rdhttp_progress_block_t)progressHandler;
-- (void)setUploadProgressHandler:(rdhttp_progress_block_t)progressHandler;
-- (void)setHTTPBodyStreamCreationBlock:(rdhttp_httpbody_stream_block_t)streamGenerator;
+- (void)setHTTPAuthHandler:(nullable rdhttp_httpauth_block_t)HTTPAuthHandler;
+- (void)setSSLCertificateTrustHandler:(nullable rdhttp_trustssl_block_t)SSLCertificateTrustHandler;
+- (void)setHeadersHandler:(nullable rdhttp_header_block_t)headersHandler;
+- (void)setDownloadProgressHandler:(nullable rdhttp_progress_block_t)progressHandler;
+- (void)setUploadProgressHandler:(nullable rdhttp_progress_block_t)progressHandler;
+- (void)setHTTPBodyStreamCreationBlock:(nullable rdhttp_httpbody_stream_block_t)streamGenerator;
+- (void)setResponseDataHandler:(nullable rdhttp_response_data_block_t)responseDataHandler;
 
 
 
 /** @name Additional request configuration */
 
 /** A dictionary for passing custom information from <RDHTTPRequest> to <RDHTTPResponse> */
-@property(nonatomic, copy)   NSDictionary       *userInfo;
+@property(nullable, nonatomic, copy)   NSDictionary       *userInfo;
 
 /** Returns request's <RDHTTPFormPost> object which is used to set POST form values (key-value strings or files)
  *  @returns request's form POST configuration object 
  */
-@property(nonatomic, retain) RDHTTPFormPost     *formPost;
+@property(nullable, nonatomic, retain) RDHTTPFormPost     *formPost;
 
 /** Dispatch queue for executing event blocks. By default all callback blocks are executed on the main queue. */
-@property(nonatomic, assign) dispatch_queue_t   dispatchQueue;
+@property(nullable, nonatomic, assign) dispatch_queue_t   dispatchQueue;
 
 /** A Boolean that indicates if saving HTTP response directly to file is required. */
 @property(nonatomic, assign) BOOL               shouldSaveResponseToFile;
@@ -208,9 +227,15 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  */
 @property(nonatomic, assign) BOOL               shouldUseRFC2616RedirectBehaviour;
 
+/** A Boolean that indicates whether 301 and 302 automatic redirects will use
+ *  HTTP header fields from new request.
+ *  Works only if shouldUseRFC2616RedirectBehaviour is YES.
+ *  Default value is NO.
+ */
+@property(nonatomic, assign) BOOL               shouldReplaceHTTPHeaderFieldsOnRFC2616RedirectBehaviour;
 
 /** A String which would be used as a value for User-Agent: HTTP request header. */
-@property(nonatomic, copy)   NSString           *userAgent;
+@property(nullable, nonatomic, copy)   NSString           *userAgent;
 
 /** A Boolean that indicates that RDHTTP will create its own thread that will be used for HTTP requests processing.
  * Internal thread is shared among all RDHTTP instances. It can also be returned from application delegate,
@@ -244,9 +269,10 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  * stored to the cookie manager by default.
  */
 @property(nonatomic, assign) BOOL                           HTTPShouldHandleCookies;
+@property(nullable, nonatomic, retain) RDHTTPCookiesStorage           * customCookiesStorage;
 
 /** An URL for HTTP request */
-@property(nonatomic, assign) NSURL                          *URL;
+@property(nonatomic, copy) NSURL                          *URL;
 
 
 /** Sets HTTP Authorization header for Basic Authorization using supplied credentials. 
@@ -262,27 +288,27 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  @returns a dictionary containing all the HTTP header fields of the receiver.
  */
 
-- (NSDictionary *)allHTTPHeaderFields;
+- (nullable NSDictionary *)allHTTPHeaderFields;
 
 /** Returns the value which corresponds to the given header field.
  *
  *  @param field the header field name to use for the lookup (case-insensitive).
  *  @returns the value associated with the given header field, or nil if there is no value associated with the given header field.
  */
-- (NSString *)valueForHTTPHeaderField:(NSString *)field;
+- (nullable NSString *)valueForHTTPHeaderField:(NSString *)field;
 
 /** Sets the specified HTTP header field.
  *  @param value The new value for the header field. Any existing value for the field is replaced by the new value. 
  *  @param field The name of the header field to set. In keeping with the HTTP RFC, HTTP header field names are case-insensitive. 
  */
-- (void)setValue:(NSString *)value forHTTPHeaderField:(NSString *)field;
+- (void)setValue:(nullable NSString *)value forHTTPHeaderField:(NSString *)field;
 
 /** Sets the request body of the receiver to the specified data.
  *  @param data The new request body for the receiver. 
  *  @param contentType  The value of Content-Type HTTP header that would be transmitted with request. 
  *  Set to nil, if you don't need to set Content-Type header here. 
  */ 
-- (void)setHTTPBodyData:(NSData *)data contentType:(NSString *)contentType;
+- (void)setHTTPBodyData:(NSData *)data contentType:(nullable NSString *)contentType;
 
 
 /** Sets the request body of the receiver to data from specified input stream. 
@@ -290,7 +316,7 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  @param contentType  The value of Content-Type HTTP header that would be transmitted with request. 
  *  Set to nil, if you don't need to set Content-Type header here. 
  */
-- (void)setHTTPBodyStream:(NSInputStream *)inputStream contentType:(NSString *)contentType;
+- (void)setHTTPBodyStream:(nullable NSInputStream *)inputStream contentType:(nullable NSString *)contentType;
 
 
 /** Sets the request body of the receiver to data from specified file. 
@@ -304,14 +330,14 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  @param aCompletionBlock A block to call when request execution is completed. This block type is 
  *         void (^rdhttp_block_t)(RDHTTPResponse *response);
  */
-- (RDHTTPOperation *)operationWithCompletionHandler:(rdhttp_block_t)aCompletionBlock;
+- (RDHTTPOperation *)operationWithCompletionHandler:(nullable rdhttp_block_t)aCompletionBlock;
 
 /** Creates and returns an initialized <RDHTTPOperation>. New operation object is **automatically started** 
  *  to execute current request.
  *  @param aCompletionBlock A block to call when request execution is completed. This block type is 
  *         void (^rdhttp_block_t)(RDHTTPResponse *response);
  */
-- (RDHTTPOperation *)startWithCompletionHandler:(rdhttp_block_t)aCompletionBlock;
+- (RDHTTPOperation *)startWithCompletionHandler:(nullable rdhttp_block_t)aCompletionBlock;
 
 @end
 
@@ -345,40 +371,40 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
                           error:(NSError **)error;
 
 /** A dictionary for passing custom information from RDHTTPRequest to RDHTTPResponse */
-@property(nonatomic, readonly) NSDictionary *userInfo;
+@property(nullable, nonatomic, readonly) NSDictionary *userInfo;
 
 /** An URL of the resourse that returned the response */
-@property(nonatomic, readonly) NSURL        *URL;
+@property(nullable, nonatomic, readonly) NSURL        *URL;
 
 
 /** Describes the error that occurred if non-200 HTTP response was returned. */
-@property(nonatomic, readonly) NSError      *httpError;
+@property(nullable, nonatomic, readonly) NSError      *httpError;
 
 /** Describes generic network connection error. */
-@property(nonatomic, readonly) NSError      *networkError;
+@property(nullable, nonatomic, readonly) NSError      *networkError;
 
 /** Describes request error, either the one which is returned by httpError or the one returned by <error> */
-@property(nonatomic, readonly) NSError      *error;
+@property(nullable, nonatomic, readonly) NSError      *error;
 
 /** Returns the receiver’s HTTP status code. */
 @property(nonatomic, readonly) NSUInteger   statusCode;
 
 
 /** Returns HTTP response as string. Encoding specified in Content-Type is used, default encoding is UTF-8. */
-@property(nonatomic, readonly) NSString     *responseString;
+@property(nullable, nonatomic, readonly) NSString     *responseString;
 
 /** Returns HTTP response as data. If <shouldSaveResponseToFile> flag of <RDHTTPRequest> was set this property returns nil. */
-@property(nonatomic, readonly) NSData       *responseData;
+@property(nullable, nonatomic, readonly) NSData       *responseData;
 
 /** Returns a suggested filename for the response data. */
-@property(nonatomic, readonly) NSString     *suggestedFilename;
+@property(nullable, nonatomic, readonly) NSString     *suggestedFilename;
 
 /** Returns an expected content length for the response data. */
 @property (nonatomic, readonly) long long   expectedContentLength;
 
 /** Returns file URL of HTTP response saved as a temporary file. 
     If <shouldSaveResponseToFile> flag of <RDHTTPRequest> was not set this property returns nil. */
-@property(nonatomic, readonly) NSURL        *responseFileURL;
+@property(nullable, nonatomic, readonly) NSURL        *responseFileURL;
 
 /** Returns all the HTTP header fields of the receiver. Keys in this dictionary are lowercase. */
 @property(nonatomic, readonly) NSDictionary *allHeaderFields;
@@ -484,13 +510,16 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  @param key The name of one of the POST form fields. 
  */
 - (void)setFile:(NSURL *)fileURL forKey:(NSString *)key;
-- (void)setFile:(NSURL *)fileURL fileName:(NSString*)fileName forKey:(NSString *)key;
+- (void)setFile:(NSURL *)fileURL fileName:(nullable NSString*)fileName forKey:(NSString *)key;
+- (void)setData:(NSData *)data withFileName:(NSString *)fileName andContentType:(NSString *)contentType forKey:(NSString *)key;
 
 /** Creates input stream which can be used with NSMutableURLRequest.
  *  Returns nil if <setFile:forKey:> was not called.
  *  @param encoding Stream data will be encoded using this encoding
  */
-- (RDHTTPMultipartPostStream*)multipartPostStreamWithEncoding:(NSStringEncoding)encoding;
+- (nullable RDHTTPMultipartPostStream*)multipartPostStreamWithEncoding:(NSStringEncoding)encoding;
+
+- (NSInputStream *)HTTPBodyStreamWithEncoding:(NSStringEncoding)encoding contentType:(NSString * _Nonnull * _Nullable)contentType contentLength:(NSUInteger * _Nullable)contentLength;
 
 /** Utility method that add percents escapes to a string
  *  @param url Source string that would be part of URL later. All characters that need percent escape encoding would be escaped. 
@@ -502,6 +531,7 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
  *  @param encoding Default encoding that would be specified with some MIME types. 
  */
 + (NSString *)guessContentTypeForURL:(NSURL *)filePath defaultEncoding:(NSStringEncoding)encoding;
+
 @end
 
 
@@ -541,3 +571,18 @@ typedef NSInputStream *(^rdhttp_httpbody_stream_block_t)();
 @end
 
 
+@interface RDHTTPCookiesStorage : NSObject
+
+- (instancetype) initWithStoarageLocation:(NSString*)storageLocation;
+
+- (void) setCookie:(NSHTTPCookie*)cookie forURL:(NSURL*)url;
+- (void) deleteAllCookies;
+- (NSArray*) cookiesForURL:(NSURL*)url;
+
+- (BOOL) save;
+
+@end
+
+NS_ASSUME_NONNULL_END
+
+#endif // RDHTTP_H

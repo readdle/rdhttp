@@ -84,7 +84,7 @@
     @autoreleasepool {
         [NSThread currentThread].name = @"RDHTTPDemoConnectionThread";
         pthread_setname_np("RDHTTPDemoConnectionThread");
-        [NSTimer scheduledTimerWithTimeInterval:1000000 target:nil selector:nil userInfo:nil repeats:YES];
+        [NSTimer scheduledTimerWithTimeInterval:1000000 target:[NSNull null] selector:@selector(description) userInfo:nil repeats:YES];
 
         NSRunLoop *loop = [NSRunLoop currentRunLoop];
         BOOL hasSources = YES;

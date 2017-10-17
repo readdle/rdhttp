@@ -31,6 +31,8 @@
 #import <MobileCoreServices/MobileCoreServices.h>
 #endif
 
+BOOL RDHTTPUseCredentialPersistenceNone = NO;
+
 NSString *const RDHTTPResponseCodeErrorDomain = @"RDHTTPResponseCodeErrorDomain";
 static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 
@@ -118,13 +120,18 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 }
 
 - (NSError *)httpError {
-    if (httpError) 
+    if (httpError) {
         return httpError;
+    }
     
+    if (nil == response) {
+        return nil;
+    }
     NSInteger statusCode = [response statusCode];
     
-    if (statusCode >= 200 && statusCode < 300)
+    if (statusCode >= 200 && statusCode < 300) {
         return nil;
+    }
     
     httpError = [[NSError errorWithDomain:RDHTTPResponseCodeErrorDomain code:statusCode userInfo:nil] retain];
     return httpError;
@@ -220,9 +227,9 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 }
 
 - (NSString *)description {
-    return [NSString stringWithFormat:@"<RDHTTPResponse: URL %@ code %ld length: %lu>", 
+    return [NSString stringWithFormat:@"<RDHTTPResponse: URL %@ code %ld length:%lud>", 
             response.URL,
-            (long)response.statusCode, 
+            (long)response.statusCode,
             (unsigned long)[responseData length]];
 }
 
@@ -252,7 +259,8 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     NSMutableURLRequest *urlRequest;
     rdhttp_block_t      completionBlock;
     NSString            *postBodyFilePath;
-    
+    RDHTTPCookiesStorage* _customCookiesStorage;
+    BOOL                  _HTTPShouldHandleCookies;
 }
 - (id)initWithMethod:(NSString *)aMethod resource:(NSObject *)urlObject;
 - (void)prepare;
@@ -272,6 +280,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 @synthesize encoding;
 @synthesize shouldRedirect;
 @synthesize shouldUseRFC2616RedirectBehaviour;
+@synthesize shouldReplaceHTTPHeaderFieldsOnRFC2616RedirectBehaviour;
 @synthesize useInternalThread;
 @synthesize postBodyFilePath;
 
@@ -303,6 +312,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
         shouldRedirect = YES;
         urlRequest.timeoutInterval = 20;
         useInternalThread = YES;
+        _HTTPShouldHandleCookies = YES;
     }
     return self;
 }
@@ -341,6 +351,12 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
         Block_release(HTTPBodyStreamCreationBlock);
         HTTPBodyStreamCreationBlock = nil;
     }
+    if (responseDataHandler) {
+        Block_release(responseDataHandler);
+        responseDataHandler = nil;
+    }
+    [_customCookiesStorage release];
+    _customCookiesStorage = nil;
     [super dealloc];
 }
 
@@ -366,6 +382,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     request.shouldSaveResponseToFile = shouldSaveResponseToFile;
     request.shouldRedirect = shouldRedirect;
     request.shouldUseRFC2616RedirectBehaviour = shouldUseRFC2616RedirectBehaviour;
+    request.shouldReplaceHTTPHeaderFieldsOnRFC2616RedirectBehaviour = shouldReplaceHTTPHeaderFieldsOnRFC2616RedirectBehaviour;
     request.useInternalThread = useInternalThread;
     
     [request setHTTPBodyStreamCreationBlock:self.HTTPBodyStreamCreationBlock];
@@ -374,7 +391,11 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     [request setDownloadProgressHandler:self.downloadProgressHandler];
     [request setUploadProgressHandler:self.uploadProgressHandler];
     [request setHeadersHandler:self.headersHandler];
+    [request setResponseDataHandler:self.responseDataHandler];
     request.postBodyFilePath = self.postBodyFilePath;
+
+    [request setHTTPShouldHandleCookies:_HTTPShouldHandleCookies];
+    [request setCustomCookiesStorage:_customCookiesStorage];
     
     return request;
 }
@@ -534,6 +555,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 @synthesize SSLCertificateTrustHandler;
 @synthesize HTTPAuthHandler;
 @synthesize HTTPBodyStreamCreationBlock;
+@synthesize responseDataHandler;
 
 - (void)setURL:(NSURL *)URL {
     [urlRequest setURL:URL];
@@ -560,11 +582,28 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 }
 
 - (void)setHTTPShouldHandleCookies:(BOOL)HTTPShouldHandleCookies {
+    _HTTPShouldHandleCookies = HTTPShouldHandleCookies;
     [urlRequest setHTTPShouldHandleCookies:HTTPShouldHandleCookies];
 }
 
 - (BOOL)HTTPShouldHandleCookies {
-    return [urlRequest HTTPShouldHandleCookies];
+    return _HTTPShouldHandleCookies;
+}
+
+- (void) setCustomCookiesStorage:(RDHTTPCookiesStorage *)customCookiesStorage {
+    [_customCookiesStorage autorelease];
+    _customCookiesStorage = [customCookiesStorage retain];
+
+    if (_customCookiesStorage) {
+        [urlRequest setHTTPShouldHandleCookies:NO];
+    }
+    else {
+        [urlRequest setHTTPShouldHandleCookies:_HTTPShouldHandleCookies];
+    }
+}
+
+- (RDHTTPCookiesStorage*) customCookiesStorage {
+    return _customCookiesStorage;
 }
 
 - (void)setHTTPShouldUsePipelining:(BOOL)HTTPShouldUsePipelining {
@@ -602,9 +641,9 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     NSMutableString *response = [NSMutableString stringWithCapacity:input_length*2];
     
     for(NSUInteger i=0; i<input_length;) {
-        const uint32_t octet_a = i < input_length ? dataptr[i++] : (i++, 0);
-        const uint32_t octet_b = i < input_length ? dataptr[i++] : (i++, 0);
-        const uint32_t octet_c = i < input_length ? dataptr[i++] : (i++, 0);
+        const uint32_t octet_a = i < input_length ? dataptr[i++] : ((void)(i++), 0);
+        const uint32_t octet_b = i < input_length ? dataptr[i++] : ((void)(i++), 0);
+        const uint32_t octet_c = i < input_length ? dataptr[i++] : ((void)(i++), 0);
         
         const uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
         [response appendFormat:@"%c", cb64[(triple >> 3 * 6) & 0x3F]];
@@ -627,6 +666,15 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 }
 
 - (void)prepare {
+    if (_HTTPShouldHandleCookies && _customCookiesStorage) {
+        NSArray * cookies = [_customCookiesStorage cookiesForURL:urlRequest.URL];
+        NSDictionary * requestHeaderFieldsWithCookies = [NSHTTPCookie requestHeaderFieldsWithCookies:cookies];
+        NSString * cookiesHeaderValue = [requestHeaderFieldsWithCookies valueForKey:@"Cookie"];
+        if (cookiesHeaderValue) {
+            [urlRequest setValue:cookiesHeaderValue forHTTPHeaderField:@"Cookie"];
+        }
+    }
+
     [formPost setupPostFormRequest:urlRequest encoding:encoding];
 
     // generate input stream using Creation Block 
@@ -643,6 +691,7 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
         if (newStream == nil) {
             NSLog(@"RDHTTP: we have tried to re-generate form post input stream, but failed");
         }
+        return newStream;
     }
     
     if (postBodyFilePath) {
@@ -752,7 +801,25 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     [multipartPostFiles setObject:@{@"fileURL" : fileURL, @"fileName" : fileName} forKey:key];
 }
 
-- (RDHTTPMultipartPostStream*)multipartPostStreamWithEncoding:(NSStringEncoding)encoding {
+- (void)setData:(NSData *)data
+    withFileName:(NSString *)fileName
+    andContentType:(NSString *)contentType
+    forKey:(NSString *)key {
+
+    NSDictionary *fields = @{
+        @"fileURL" : data,
+        @"fileName" : fileName,
+        @"contentType" : contentType
+    };
+
+    if (nil == multipartPostFiles) {
+        multipartPostFiles = [[NSMutableDictionary dictionaryWithCapacity:0] retain];
+    }
+
+    [multipartPostFiles setObject:fields forKey:key];
+}
+
+- (NSInputStream*)multipartPostStreamWithEncoding:(NSStringEncoding)encoding {
     RDHTTPMultipartPostStream* postStream = nil;
     
     if (multipartPostFiles) {
@@ -817,6 +884,48 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
     
     return nil;
 }
+
+- (NSInputStream *)HTTPBodyStreamWithEncoding:(NSStringEncoding)encoding contentType:(NSString**)contentType contentLength:(NSUInteger*)contentLength {
+    NSString *charset = (NSString *)CFStringConvertEncodingToIANACharSetName(CFStringConvertNSStringEncodingToEncoding(encoding));
+
+    if (multipartPostFiles) {
+        // multipart/form-data, stream
+
+        RDHTTPMultipartPostStream *postStream = [[RDHTTPMultipartPostStream alloc] initWithPostFields:postFields
+                                                                                  multipartPostFields:multipartPostFiles
+                                                                                             encoding:encoding];
+
+        if (contentLength) {
+            *contentLength = postStream.multipartBodyLength;
+        }
+
+        if (contentType) {
+            *contentType = [NSString stringWithFormat:@"multipart/form-data; charset=%@; boundary=%@", charset, postStream.contentBoundary];
+        }
+
+        return [postStream autorelease];
+    }
+    else {
+        // x-www-form-urlencoded body, in memory
+        if (postFields == nil)
+            return nil;
+
+        NSData * formData = [self formURLEncodedBodyWithEncoding:NSUTF8StringEncoding];
+
+        if (contentLength) {
+            *contentLength = formData.length;
+        }
+
+        if (contentType) {
+            *contentType = [NSString stringWithFormat:@"application/x-www-form-urlencoded; charset=%@", charset];
+        }
+
+        return [NSInputStream inputStreamWithData:formData];
+    }
+
+    return nil;
+}
+
 
 - (NSData *)formURLEncodedBodyWithEncoding:(NSStringEncoding)encoding {
     
@@ -925,8 +1034,15 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
         for(NSString *key in multipartPostFiles) {
             NSURL *fileURL = [[multipartPostFiles objectForKey:key] objectForKey:@"fileURL"];
             NSString *fileName = [[multipartPostFiles objectForKey:key] objectForKey:@"fileName"];
-            
-            if ([[NSFileManager defaultManager] fileExistsAtPath:[fileURL path]] == NO) {
+            NSString *contentType = [[multipartPostFiles objectForKey:key] objectForKey:@"contentType"];
+
+            // Some kind of dirty hack is used here.
+            // Down the flow fileURL is accepted as NSURL or NSData object
+            // so, here it needs some protection for FileManager's and guessContentTypeForURL: methods
+
+            if ([fileURL isKindOfClass:[NSURL class]] &&
+                (NO == [[NSFileManager defaultManager] fileExistsAtPath:[fileURL path]])) {
+
                 NSLog(@"RDHTTP: no file %@ exists", fileURL);
                 continue;
             }
@@ -936,8 +1052,15 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
             }
             
             NSMutableString *fileHeaders = [NSMutableString stringWithCapacity:256];
-            NSString *contentType = [RDHTTPFormPost guessContentTypeForURL:fileURL defaultEncoding:encoding];
-            
+            if (nil == contentType) {
+                if ([fileURL isKindOfClass:[NSURL class]]) {
+                    contentType = [RDHTTPFormPost guessContentTypeForURL:fileURL defaultEncoding:encoding];
+                }
+                else {
+                    contentType = @"application/octet-stream";
+                }
+            }
+
             [fileHeaders appendFormat:@"Content-Disposition: form-data; name=\"%@\"; filename=\"%@\"\r\n", key, fileName];
             [fileHeaders appendFormat:@"Content-Type: %@\r\n\r\n", contentType];
             
@@ -1006,7 +1129,9 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
             [currentFileDataURL release];
             [currentFileData release];
             
-            currentFileData = [[NSData alloc] initWithContentsOfMappedFile:[url path]];
+            currentFileData = [[NSData alloc] initWithContentsOfURL:url
+                                                            options:NSDataReadingMappedIfSafe
+                                                              error:nil];
             currentFileDataURL = [url copy];
         }
         
@@ -1237,10 +1362,24 @@ static char *const RDHTTPDispatchQueueActive = "RDHTTPDispatchQueueKey";
 @dynamic host;
 
 - (void)continueWithUsername:(NSString *)username password:(NSString *)password {
-    
+
+    // pastey:
+    // We used NSURLCredentialPersistenceNone. Unfortunatelly it was broken in iOS 8
+    // Other people complain too https://devforums.apple.com/message/1037049#1037049
+    // Sync with any Microsoft IIS with NTLM (for example, out iis.rdl.as or https://j.readdle.com/browse/ESP-51) does not work.
+    // Use of NSURLCredentialPersistenceForSession seems to fix this problem
+    //
+    // NSURLCredentialPersistenceNone was fixed in 8.1
+    //
+
+    NSURLCredentialPersistence persistence = NSURLCredentialPersistenceForSession;
+    if (RDHTTPUseCredentialPersistenceNone) {
+        persistence = NSURLCredentialPersistenceNone;
+    }
+
     NSURLCredential *credential = [NSURLCredential credentialWithUser:username
                                                              password:password
-                                                          persistence:NSURLCredentialPersistenceNone];
+                                                          persistence:persistence];
 
     [[challenge sender] useCredential:credential
            forAuthenticationChallenge:challenge];
@@ -1299,7 +1438,7 @@ static NSThread *_rdhttpThread;
     @autoreleasepool {
         self.name = @"RDHTTPConnectionThread";
         pthread_setname_np("RDHTTPConnectionThread");
-        [NSTimer scheduledTimerWithTimeInterval:1000000 target:nil selector:nil userInfo:nil repeats:YES];
+        [NSTimer scheduledTimerWithTimeInterval:1000000 target:[NSNull null] selector:@selector(description) userInfo:nil repeats:YES];
         
         NSRunLoop *loop = [NSRunLoop currentRunLoop];
         BOOL hasSources = YES;
@@ -1425,6 +1564,7 @@ static NSThread *_rdhttpThread;
     
     [connection cancel];
     connection = nil;
+    [self cleanTempFile];
     
     [self willChangeValueForKey:@"isCancelled"];
     isCancelled = YES;
@@ -1467,6 +1607,12 @@ static NSThread *_rdhttpThread;
     tempFileHandle = [[NSFileHandle fileHandleForWritingAtPath:tempFilePath] retain];
 }
 
+- (void)cleanTempFile
+{
+    if (tempFilePath)
+        [[NSFileManager defaultManager] removeItemAtPath:tempFilePath error:nil];
+}
+
 #pragma mark - NSURLConnection delegate / dataSource
 
 - (void)connection:(NSURLConnection *)aConnection didFailWithError:(NSError *)error {
@@ -1487,13 +1633,11 @@ static NSThread *_rdhttpThread;
                 return;
             
             completionBlock(response);
-            if (tempFilePath)
-                [[NSFileManager defaultManager] removeItemAtPath:tempFilePath error:nil];
+            [self cleanTempFile];
         });
     }
     else {
-        if (tempFilePath)
-            [[NSFileManager defaultManager] removeItemAtPath:tempFilePath error:nil];
+            [self cleanTempFile];
     }
     
     [self willChangeValueForKey:@"isExecuting"];
@@ -1509,22 +1653,36 @@ static NSThread *_rdhttpThread;
 
     [httpResponse release];
     httpResponse = [(NSHTTPURLResponse *)aResponse retain];
-    httpExpectedContentLength = [httpResponse expectedContentLength];
+    long long expectedContentLength = [aResponse expectedContentLength];
+    httpExpectedContentLength = expectedContentLength;
     
     if (request.shouldSaveResponseToFile) {
         [self prepareTempFile];    
     }
-    else {
+    else if (nil == request.responseDataHandler) {
         NSUInteger dataCapacity = 8192;
-        if (httpExpectedContentLength != NSURLResponseUnknownLength)
-            dataCapacity = httpExpectedContentLength;
+        if (expectedContentLength != NSURLResponseUnknownLength)
+            dataCapacity = (NSUInteger)expectedContentLength;
         
         [httpResponseData release];
         httpResponseData = [[NSMutableData alloc] initWithCapacity:dataCapacity];
     }
-    
+
+    if (request.HTTPShouldHandleCookies) {
+        RDHTTPCookiesStorage * customCookiesStorage = [request customCookiesStorage];
+        if (customCookiesStorage) {
+            NSArray * receivedCookies = [NSHTTPCookie cookiesWithResponseHeaderFields:((NSHTTPURLResponse *)aResponse).allHeaderFields forURL:request.URL];
+            if (receivedCookies.count > 0) {
+                for (NSHTTPCookie * cookie in receivedCookies) {
+                    [customCookiesStorage setCookie:cookie forURL:request.URL];
+                }
+                [customCookiesStorage save];
+            }
+        }
+    }
+
     if (request.headersHandler && [self isCancelled] == NO) {
-        RDHTTPResponse *response = [[[RDHTTPResponse alloc] initWithResponse:httpResponse
+        RDHTTPResponse *response = [[[RDHTTPResponse alloc] initWithResponse:((NSHTTPURLResponse *)aResponse)
                                                                      request:request
                                                                        error:nil
                                                                 tempFilePath:nil // too early to pass tempFilePath, it is empty
@@ -1543,8 +1701,11 @@ static NSThread *_rdhttpThread;
     if (httpResponseData) {
         [httpResponseData appendData:data];
     }
-    else {
+    else if (tempFileHandle) {
         [tempFileHandle writeData:data];
+    }
+    else if (request.responseDataHandler) {
+        request.responseDataHandler(data);
     }
     
     httpSavedDataLength += [data length];
@@ -1554,10 +1715,21 @@ static NSThread *_rdhttpThread;
         
         if (httpExpectedContentLength > 0) {
             float progress = (float)httpSavedDataLength  / (float)httpExpectedContentLength;
-            dispatch_async(request.dispatchQueue, ^{ if (self.isCancelled) return; progressBlock(progress); });
+            
+            dispatch_async(request.dispatchQueue, ^{
+                if (self.isCancelled) {
+                    return;
+                }
+                progressBlock(progress);
+            });
         }
         else {
-            dispatch_async(request.dispatchQueue, ^{ if (self.isCancelled) return; progressBlock(-1.0f); });
+            dispatch_async(request.dispatchQueue, ^{
+                if (self.isCancelled) {
+                    return;
+                }
+                progressBlock(-1.0f);
+            });
             sendProgressUpdates = NO;
         }
     }
@@ -1573,7 +1745,13 @@ static NSThread *_rdhttpThread;
         
         if (totalBytesExpectedToWrite > 0) {
             float progress = (float)totalBytesWritten  / (float)totalBytesExpectedToWrite;
-            dispatch_async(dispatch_get_main_queue(), ^{ progressBlock(progress); });
+            
+            dispatch_async(request.dispatchQueue, ^{
+                if (self.isCancelled) {
+                    return;
+                }
+                progressBlock(progress);
+            });
         }
     }
 }
@@ -1584,8 +1762,7 @@ static NSThread *_rdhttpThread;
     rdhttp_block_t completionBlock = request.completionBlock;
     
     if (completionBlock == nil || [self isCancelled]) {
-        if (tempFilePath)
-            [[NSFileManager defaultManager] removeItemAtPath:tempFilePath error:nil];
+        [self cleanTempFile];
         return;
     }
     
@@ -1601,9 +1778,11 @@ static NSThread *_rdhttpThread;
 
     
     dispatch_async(request.dispatchQueue, ^{
-        completionBlock(response);
-        if (tempFilePath)
-            [[NSFileManager defaultManager] removeItemAtPath:tempFilePath error:nil];
+        if (NO == self.isCancelled) {
+            completionBlock(response);
+        }
+
+        [self cleanTempFile];
     });
     
     [self willChangeValueForKey:@"isExecuting"];
@@ -1625,6 +1804,16 @@ static NSThread *_rdhttpThread;
         if (request.shouldUseRFC2616RedirectBehaviour) {
             NSMutableURLRequest *new2616request = [[[request _nsurlrequest] mutableCopy] autorelease];
             [new2616request setURL:newURLRequest.URL];
+
+            if (request.shouldReplaceHTTPHeaderFieldsOnRFC2616RedirectBehaviour) {
+                // vs.savchenko@readdle.com: 'setAllHTTPHeaderFields:' is doing UNION from old and new sets of values
+                for (NSString *headerKey in [[new2616request allHTTPHeaderFields] allKeys]) {
+                    [new2616request setValue:nil forHTTPHeaderField:headerKey];
+                }
+                for (NSString *headerKey in [[newURLRequest allHTTPHeaderFields] allKeys]) {
+                    [new2616request setValue:([newURLRequest allHTTPHeaderFields])[headerKey] forHTTPHeaderField:headerKey];
+                }
+            }
             return new2616request;
         }
         
@@ -1659,8 +1848,28 @@ static NSThread *_rdhttpThread;
 
 - (void)connection:(NSURLConnection *)connection didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge {
     NSString *host = [[request _nsurlrequest].URL host];
-    
+
     if ([challenge.protectionSpace.authenticationMethod isEqualToString:@"NSURLAuthenticationMethodServerTrust"]) {
+        SecTrustResultType resultType;
+        OSStatus checkResult = SecTrustEvaluate(challenge.protectionSpace.serverTrust, &resultType);
+
+        if (errSecSuccess == checkResult) {
+            if ((kSecTrustResultUnspecified == resultType) ||
+                (kSecTrustResultProceed == resultType)) {
+
+                NSURLCredential *credential =
+                    [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust];
+
+                [[challenge sender] useCredential:credential
+                    forAuthenticationChallenge:challenge];
+
+                return;
+            }
+        }
+
+
+        // Identity check is failed, let client to decide trust
+
         // certificate trust
         RDHTTPSSLServerTrust *serverTrust = [[RDHTTPSSLServerTrust alloc] initWithChallenge:challenge host:host];
         
@@ -1700,6 +1909,306 @@ static NSThread *_rdhttpThread;
         });
         
         [httpAuthorizer release];
+    }
+}
+
+@end
+
+
+@implementation RDHTTPCookiesStorage
+{
+    NSMutableDictionary * _tailMatchDomainCookies;
+    NSMutableDictionary * _exactMatchDomainCookies;
+    NSString* _storageLocation;
+}
+
+- (instancetype) initWithStoarageLocation:(NSString*)storageLocation {
+    self = [self init];
+    if (self) {
+        _storageLocation = [storageLocation copy];
+        [self load];
+    }
+    return self;
+}
+
+- (instancetype) init {
+    self = [super init];
+    if (self) {
+        _tailMatchDomainCookies = [NSMutableDictionary new];
+        _exactMatchDomainCookies = [NSMutableDictionary new];
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    [self save];
+
+    [_tailMatchDomainCookies release];
+    [_exactMatchDomainCookies release];
+    [_storageLocation release];
+    [super dealloc];
+}
+
+- (BOOL) load {
+    NSAssert(_storageLocation, @"");
+    if (nil == _storageLocation) {
+        return NO;
+    }
+
+    NSArray * cookieDictionaries = [NSArray arrayWithContentsOfFile:_storageLocation];
+    if (nil == cookieDictionaries) {
+        return NO;
+    }
+
+    for (NSDictionary * cookieProperties in cookieDictionaries) {
+        NSHTTPCookie * cookie = [NSHTTPCookie cookieWithProperties:cookieProperties];
+        if ([self isExpiredCookie:cookie]) {
+            continue;
+        }
+
+        NSMutableArray * cookiesForDomain = [self provideArrayOfCookiesForDomain:cookie.domain];
+        [cookiesForDomain addObject:cookie];
+    }
+
+    return NO;
+}
+
+- (BOOL) save {
+    if (nil == _storageLocation) {
+        return NO;
+    }
+
+    @synchronized(self) {
+        NSMutableArray * cookies = [[NSMutableArray new] autorelease];
+        for (NSArray * cookiesForDomain in [_exactMatchDomainCookies allValues]) {
+            [cookies addObjectsFromArray:cookiesForDomain];
+        }
+        for (NSArray * cookiesForDomain in [_tailMatchDomainCookies allValues]) {
+            [cookies addObjectsFromArray:cookiesForDomain];
+        }
+
+        [cookies filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSHTTPCookie * cookie, NSDictionary *bindings) {
+            return nil != cookie.expiresDate;
+        }]];
+
+        NSArray * cookieDictionaries = [cookies valueForKey:@"properties"];
+        if (cookieDictionaries.count > 0) {
+            BOOL res = [cookieDictionaries writeToFile:_storageLocation atomically:YES];
+            NSAssert(res, @"");
+            return res;
+        }
+
+        return YES;
+    }
+}
+
+- (NSString*) canonicalizedDomainString:(NSString*)domainString {
+    domainString = [domainString lowercaseString];
+    if ([domainString hasSuffix:@"."] && domainString.length > 1) {
+        domainString = [domainString substringToIndex:domainString.length-1];
+    }
+    return domainString;
+}
+
+- (BOOL) doesCookieDomain:(NSString*)cookieDomain matchURLDomain:(NSString*)urlDomain {
+    NSAssert(cookieDomain && urlDomain, @"");
+    if (nil == cookieDomain || nil == urlDomain) {
+        return NO;
+    }
+
+    if ([cookieDomain hasPrefix:@"."]) {
+        if ([urlDomain hasSuffix:cookieDomain]) {
+            return YES;
+        }
+
+        if (cookieDomain.length > 1) {
+            return [urlDomain isEqualToString:[cookieDomain substringFromIndex:1]];
+        }
+
+        return NO;
+    }
+    else {
+        return [cookieDomain isEqualToString:urlDomain];
+    }
+}
+
+- (NSUInteger) domainLevel:(NSString*)domain {
+    NSArray * domainLabels = [[domain componentsSeparatedByString:@"."] filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSString * label, NSDictionary *bindings) {
+        return label.length > 0;
+    }]];
+    return domainLabels.count;
+}
+
+- (BOOL) isExpiredCookie:(NSHTTPCookie*)cookie {
+    return cookie.expiresDate && NSOrderedAscending == [cookie.expiresDate compare:[NSDate date]];
+}
+
+- (NSMutableArray*) provideArrayOfCookiesForDomain:(NSString*)cookieDomain {
+    @synchronized(self) {
+        if ([cookieDomain hasPrefix:@"."]) {
+            NSMutableArray * tailMatchCookiesForDomain = [_tailMatchDomainCookies objectForKey:cookieDomain];
+            if (nil == tailMatchCookiesForDomain) {
+                tailMatchCookiesForDomain = [[NSMutableArray new] autorelease];
+                _tailMatchDomainCookies[cookieDomain] = tailMatchCookiesForDomain;
+            }
+            return tailMatchCookiesForDomain;
+        }
+        else {
+            NSMutableArray * exactMatchCookiesForDomain = [_exactMatchDomainCookies objectForKey:cookieDomain];
+            if (nil == exactMatchCookiesForDomain) {
+                exactMatchCookiesForDomain = [[NSMutableArray new] autorelease];
+                _exactMatchDomainCookies[cookieDomain] = exactMatchCookiesForDomain;
+            }
+            return exactMatchCookiesForDomain;
+        }
+    }
+}
+
+- (void) setCookie:(NSHTTPCookie*)cookie forURL:(NSURL*)url {
+    if (nil == cookie || nil == url) {
+        //        log4Error();
+        NSAssert(0, @"invalid argument!");
+        return;
+    }
+
+    NSString * cookieDomain = [self canonicalizedDomainString:[cookie domain]];
+    NSString * const urlDomain = [self canonicalizedDomainString:[url host]];
+
+    if (nil == cookieDomain) {
+        cookieDomain = urlDomain;
+
+        if ([cookieDomain hasPrefix:@"."] && cookieDomain.length > 1) {
+            // just for sure - if we take domain from URL, then the domain must be used for exact match
+            cookieDomain = [cookieDomain substringFromIndex:1];
+        }
+    }
+    else {
+        if ([self domainLevel:cookieDomain] < 2) {
+            // do not allow setting cookies for ".com" or ".ua." domains
+            return;
+        }
+
+        if (NO == [self doesCookieDomain:cookieDomain matchURLDomain:urlDomain]) {
+            // reject thirdparty cookie
+            return;
+        }
+    }
+
+    @synchronized(self) {
+        NSMutableArray * cookiesForDomain = [self provideArrayOfCookiesForDomain:cookieDomain];
+
+        const BOOL isExpiredCookie = [self isExpiredCookie:cookie];
+
+        const NSUInteger indexOfCookieWithSameNameAndPath = [cookiesForDomain indexOfObjectPassingTest:^BOOL(NSHTTPCookie * existingCookie, NSUInteger idx, BOOL *stop) {
+            if ([existingCookie.name isEqualToString:cookie.name] && [existingCookie.path isEqualToString:cookie.path]) {
+                *stop = YES;
+                return YES;
+            }
+            return NO;
+        }];
+
+        if (NSNotFound != indexOfCookieWithSameNameAndPath) {
+            if (isExpiredCookie) {
+                [cookiesForDomain removeObjectAtIndex:indexOfCookieWithSameNameAndPath];
+            }
+            else {
+                [cookiesForDomain replaceObjectAtIndex:indexOfCookieWithSameNameAndPath withObject:cookie];
+            }
+        }
+        else {
+            if (NO == isExpiredCookie) {
+                [cookiesForDomain addObject:cookie];
+            }
+        }
+    }
+}
+
+- (void) deleteAllCookies {
+    @synchronized(self) {
+        [_tailMatchDomainCookies removeAllObjects];
+        [_exactMatchDomainCookies removeAllObjects];
+    }
+}
+
+- (NSArray*) cookiesFromArray:(NSArray*)cookies matchingPathOfURL:(NSURL*)url {
+    NSString * const urlPath = [url path];
+
+    NSArray * cookiesMatchingPath = [cookies filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSHTTPCookie * cookie, NSDictionary *bindings) {
+        if (0 == urlPath.length && [cookie.path isEqualToString:@"/"]) {
+            return YES;
+        }
+
+        return [urlPath hasPrefix:cookie.path];
+    }]];
+
+    return cookiesMatchingPath;
+}
+
+- (BOOL) removeExpiredCookiesFromArray:(NSMutableArray*)cookies {
+    NSMutableArray * cookiesToRemove = [[NSMutableArray new] autorelease];
+
+    for (NSHTTPCookie * cookie in cookies) {
+        if ([self isExpiredCookie:cookie]) {
+            [cookiesToRemove addObject:cookie];
+        }
+    }
+
+    if (cookiesToRemove.count > 0) {
+        [cookies removeObjectsInArray:cookiesToRemove];
+        return YES;
+    }
+
+    return NO;
+}
+
+- (NSArray*) cookiesFromArray:(NSArray*)cookies matchingSecureAttributeForURL:(NSURL*)url {
+    if ([[[url scheme] lowercaseString] isEqualToString:@"https"]) {
+        return cookies;
+    }
+    else {
+        NSArray * cookiesExcludingSecure = [cookies filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSHTTPCookie * cookie, NSDictionary *bindings) {
+            return NO == cookie.isSecure;
+        }]];
+        return cookiesExcludingSecure;
+    }
+}
+
+- (NSArray*) cookiesForURL:(NSURL*)url {
+    NSMutableArray * cookiesMatchingDomain = [[NSMutableArray new] autorelease];
+
+    NSString * const urlDomain = [self canonicalizedDomainString:[url host]];
+
+    @synchronized(self) {
+        NSMutableArray * const cookiesExactlyMatchingDomain = [_exactMatchDomainCookies objectForKey:urlDomain];
+        if (cookiesExactlyMatchingDomain.count > 0) {
+            [self removeExpiredCookiesFromArray:cookiesExactlyMatchingDomain];
+            [cookiesMatchingDomain addObjectsFromArray:cookiesExactlyMatchingDomain];
+        }
+
+        for (NSString * tailMatchDomain in _tailMatchDomainCookies.allKeys) {
+            if ([self doesCookieDomain:tailMatchDomain matchURLDomain:urlDomain]) {
+                NSMutableArray * cookiesForTail = [_tailMatchDomainCookies objectForKey:tailMatchDomain];
+                if (cookiesForTail.count > 0) {
+                    [self removeExpiredCookiesFromArray:cookiesForTail];
+                    [cookiesMatchingDomain addObjectsFromArray:cookiesForTail];
+                }
+            }
+        }
+
+        NSArray * cookiesMatchingPath = [self cookiesFromArray:cookiesMatchingDomain matchingPathOfURL:url];
+        NSArray * cookiesMatchingSecureAttribute = [self cookiesFromArray:cookiesMatchingPath matchingSecureAttributeForURL:url];
+
+        return [cookiesMatchingSecureAttribute sortedArrayWithOptions:NSSortStable usingComparator:^NSComparisonResult(NSHTTPCookie * cookie1, NSHTTPCookie * cookie2) {
+            if (cookie1.path.length > cookie2.path.length) {
+                return NSOrderedAscending;
+            }
+            else if (cookie1.path.length < cookie2.path.length) {
+                return NSOrderedDescending;
+            }
+            
+            return NSOrderedSame;
+        }];
     }
 }
 
