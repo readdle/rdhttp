@@ -1,28 +1,29 @@
 rdhttp
 ======
 
+## Deprecatopn Notice 
+
+The library is based on NSURLConnection which is deprecated since iOS 9. 
+
+Possibly it will be updated to use NSURLSession in the future, however taking advantage of background NSURLSession features will require significant changes to library API.
+
+Besides deprecated networking code this library contains following valuable pieces for curious code readers:
+
+* RDHTTPCookiesStorage — custom implementation of cookie storage 
+* RDHTTPMultipartPostStream — stream that produces multipart/form-data
+
+The code of library is non-ARC.
+
+
+## Abstract
+
+
 RDHTTP is HTTP client library for iOS. It is based on Apple's NSURLConnection but much easier to use and  ready for real world tasks. 
 
 The library was designed as a simple, self-contained solution (just RDHTTP.h and RDHTTP.m). 
 It is reasonably low-level and does not contain any features unrelated to HTTP (JSON, XML, SOAP, ...).
 
-The API is inspired by now unsupported ASIHTTPRequest with few conceptual changes: blocks instead of delegates/selectors,
-request/operation/response separation, complete absense of synchronous calls.
-
-## TODO 
-Currently the library is in development. Following tasks are active: 
-
-* More unit tests 
-* Actual usage examples
-* <del>Tested and good 'cancel' method</del>
-* <del>RFC 2616 redirect behaviour</del>
-* <del>Generating basic authorizaion header</del>
-* <del>better GCD / threading options</del>
-* <del>NSOperation methods</del>
-* <del>Submit any binary to App Store (private API test)</del>
-* <del>Documentation</del>
-* Use library in production code for 100000+ users (done with small subset of features)
-
+The API is inspired by now unsupported ASIHTTPRequest with few conceptual changes: blocks instead of delegates/selectors, request/operation/response separation, complete absense of synchronous calls.
 
 
 ## Features
@@ -40,14 +41,14 @@ Currently the library is in development. Following tasks are active:
 
 ## Requirements 
 
-* iOS 5+
+* iOS 5+ 
 
 
 ## Installation 
 
-1. Copy RDHTTP.h and RDHTTP.m from RDHTTP directory to your Xcode project. 
-2. Add MobileCoreServices.framework
+Everything in the library is contained in just two files — RDHTTP.h and RDHTTP.m; You might need to updated build-settings to secify that these files do not use ARC.
 
+Besides that you will need to add system MobileCoreServices.framework to your project.
 
 
 ## Documentation 
