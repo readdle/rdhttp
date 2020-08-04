@@ -1823,11 +1823,6 @@ static NSThread *_rdhttpThread;
     return nil;
 }
 
-- (BOOL)connection:(NSURLConnection *)connection canAuthenticateAgainstProtectionSpace:(NSURLProtectionSpace *)protectionSpace {	
-	return YES;
-}
-
-
 - (BOOL)connectionShouldUseCredentialStorage:(NSURLConnection *)connection {
 	return YES;
 }
@@ -1846,7 +1841,7 @@ static NSThread *_rdhttpThread;
     return inputStream;
 }
 
-- (void)connection:(NSURLConnection *)connection didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge {
+- (void)connection:(NSURLConnection *)connection willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge {
     NSString *host = [[request _nsurlrequest].URL host];
 
     if ([challenge.protectionSpace.authenticationMethod isEqualToString:@"NSURLAuthenticationMethodServerTrust"]) {
